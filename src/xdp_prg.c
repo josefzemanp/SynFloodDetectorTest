@@ -2,6 +2,7 @@
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
+#include <linux/icmp.h>
 #include <bpf/bpf_helpers.h>
 
 #define SYN_THRESHOLD 1000 // pac/sec limit
@@ -26,8 +27,22 @@ int syn_flood_detector(struct xdp_md *ctx){
     void *data_end = (void *)(long)ctx->data_end;
 
     struct ethhdr *eth = data;
+
+    if ((void *)(eth + 1) > data_end)
+        return XDP_PASS;
+
+    if (eth->h_proto != __constant_htons(ETH_P_IP))
+        return XDP_PASS;
+
     struct iphdr *ip = (struct iphdr *) (eth + 1);
+
+    if ((void *)(ip + 1) > data_end)
+        return XDP_PASS;
+
     struct tcphdr *tcp = (struct tcphdr *) (ip + 1);
+
+    if ((void *)(tcp + 1) > data_end)
+        return XDP_PASS;
 
     __be32 src_ip = ip->saddr;
 

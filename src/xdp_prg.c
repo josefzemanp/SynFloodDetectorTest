@@ -34,6 +34,25 @@ int syn_flood_detector(struct xdp_md *ctx){
     __u32 *is_blocked = bpf_map_lookup_elem(&blocked_ips, &src_ip); // check if ip is in hash map
 
     // block ips & check count
+    if(tcp->syn && !tcp->ack){
+        __u32 *count_of_pacs = bpf_map_lookup_elem(&pacs_count, &src_ip); // get actual count of pacs
+        __u32 new_count_of_pacs = 1;
+
+        if(count_of_pacs){
+            new_count_of_pacs = *count_of_pacs + 1;
+        }
+
+        if(new_count_of_pacs > SYN_THRESHOLD){ // is max?
+            __u32 block = 1;
+            bpf_map_update_elem(&blocked_ips, &src_ip, &block, BPF_ANY); // block ip
+
+            return XDP_DROP;
+        }
+
+        bpf_map_update_elem(&pacs_count, &src_ip, &new_count_of_pacs, BPF_ANY); // update count
+    }
     
     return XDP_PASS;
 }
+
+char LICENSE[] SEC("license") = "GPL";

@@ -1,0 +1,39 @@
+#include <linux/bpf.h>
+#include <linux/if_ether.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <bpf/bpf_helpers.h>
+
+#define SYN_THRESHOLD 1000 // pac/sec limit
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(__be32));
+    __uint(value_size, sizeof(int));
+    __uint(max_entries, 1000);
+} blocked_ips SEC("maps"); // map for blocked ips
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(key_size, sizeof(__be32));
+    __uint(value_size, sizeof(__u32));
+    __uint(max_entries, 10000);
+} pacs_count SEC("maps"); // map for pacs count by ip
+
+SEC("xdp")
+int syn_flood_detector(struct xdp_md *ctx){
+    void *data = (void *)(long)ctx->data;
+    void *data_end = (void *)(long)ctx->data_end;
+
+    struct ethhdr *eth = data;
+    struct iphdr *ip = (struct iphdr *) (eth + 1);
+    struct tcphdr *tcp = (struct tcphdr *) (ip + 1);
+
+    __be32 src_ip = ip->saddr;
+
+    __u32 *is_blocked = bpf_map_lookup_elem(&blocked_ips, &src_ip); // check if ip is in hash map
+
+    // block ips & check count
+    
+    return XDP_PASS;
+}
